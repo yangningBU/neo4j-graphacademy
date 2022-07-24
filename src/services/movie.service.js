@@ -1,3 +1,4 @@
+import { int } from 'neo4j-driver'
 import { goodfellas, popular } from '../../test/fixtures/movies.js'
 import { roles } from '../../test/fixtures/people.js'
 import { toNativeTypes } from '../utils.js'
@@ -39,12 +40,24 @@ export default class MovieService {
    */
   // tag::all[]
   async all(sort = 'title', order = 'ASC', limit = 6, skip = 0, userId = undefined) {
-    // TODO: Open an Session
-    // TODO: Execute a query in a new Read Transaction
-    // TODO: Get a list of Movies from the Result
-    // TODO: Close the session
-
-    return popular
+    const MOVIE_PROP = 'movie'
+    const session = this.driver.session()
+    const response = await session.readTransaction(tx => tx.run(
+      ` MATCH (m:Movie)
+        WHERE m.\`${sort}\` IS NOT NULL
+        RETURN m {.*} AS ${MOVIE_PROP}
+        ORDER BY m.${sort} ${order}
+        SKIP $skip
+        LIMIT $limit
+      `,
+      {
+        skip: int(skip),
+        limit: int(limit)
+      }
+    ))
+    const movies = response.records.map(row => toNativeTypes(row.get(MOVIE_PROP)))
+    await session.close()
+    return movies
   }
   // end::all[]
 
